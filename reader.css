@@ -21,10 +21,10 @@
   color: var(--muted);
 }
 
-.course-trail a, .source-link, .course-list .empty a {
+.course-trail a, .source-link, .empty a {
   color: var(--blue);
 }
-.course-trail a:hover, .source-link:hover, .course-list .empty a:hover {
+.course-trail a:hover, .source-link:hover, .empty a:hover {
   text-decoration: underline;
   text-underline-offset: .18em;
 }
@@ -203,9 +203,16 @@
 .course-missing .course-link strong, .course-missing .course-file-icon { color: var(--muted); }
 .course-file-icon { display: flex; flex: none; color: #586576; }
 .course-file-icon svg { width: 1.3rem; height: 1.3rem; }
-.course-list .empty { padding: 1.5rem .25rem; }
-.course-list .empty h2 { font-size: 1.25rem; }
-.course-list .empty p { margin: .65rem 0; }
+.empty { padding: 1.5rem .25rem; }
+.empty h2 { font-size: 1.25rem; }
+.empty p { margin: .65rem 0; }
+.not-found {
+  padding: clamp(1.25rem, 3vw, 2.25rem);
+  border: 1px solid var(--line);
+  border-radius: .5rem;
+  background: var(--surface);
+}
+.not-found h1 { font-size: clamp(1.5rem, 3vw, 2rem); }
 
 .save-lesson {
   display: inline-flex;
@@ -267,7 +274,6 @@
   border-left-color: var(--purple);
   font-weight: 600;
 }
-.outline-group a[hidden], .outline-group[hidden] { display: none; }
 .outline-group small { margin: 0 0 .15rem; font-weight: 400; font-size: .81rem; }
 #outline-empty { margin: 0 .85rem 1rem; color: var(--muted); }
 
@@ -318,6 +324,19 @@
 }
 .slide-art, .speaker-text { border: 1px solid var(--line); border-radius: .25rem; background: #fff; }
 .slide-art { overflow: hidden; }
+.slide-status {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: .9rem;
+  aspect-ratio: 16 / 9;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: .25rem;
+  background: var(--canvas);
+  color: var(--muted);
+  text-align: center;
+}
 .slide-art svg { display: block; width: 100%; height: auto; aspect-ratio: 16/9; }
 .slide-controls { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: 1rem; }
 .reader .pg {

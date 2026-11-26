@@ -1,9 +1,9 @@
 const main = document.querySelector("main");
 const mainNav = document.querySelector(".main-nav");
 const courseSwitcher = document.querySelector(".course-switcher");
-const catalog = window.lessons;
-const groups = [...new Set(catalog.map(lesson => lesson.group))];
-const weeklyGroup = "Haftalık dersler";
+const entries = window.lessons;
+const catalog = entries.filter(lesson => !lesson.upcoming);
+const groups = [...new Set(entries.map(lesson => lesson.group))];
 const bookmarkKey = "yetistirme.saved.v1";
 const paths = {
   bookmark: '<path d="M6 4h12v16l-6-4-6 4z"/>',
@@ -12,9 +12,6 @@ const paths = {
   download: '<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/>'
 };
 const icon = name => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths[name] + '</svg>';
-const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char =>
-  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
-const folded = value => value.toLocaleLowerCase("tr").normalize("NFD").replace(/\p{M}/gu, "").replace(/ı/g,"i").replace(/['’‘]/g,"");
 let saved = new Set();
 try {
   const values = JSON.parse(localStorage.getItem(bookmarkKey) || "[]");
@@ -25,6 +22,7 @@ let page = "";
 let query = "";
 let selected = null;
 let edition = null;
+let deck = null;
 let slideIndex = 0;
 let mode = "slides";
 let readerOrigin = "benim-sunumlarim";
@@ -127,7 +125,14 @@ function lessonUrl(lesson) {
   return "#ders/" + encodeURIComponent(lesson.id);
 }
 function catalogueRow(lesson) {
-  const counts = lesson.editions[0].slides.length + " slayt" + (lesson.editions.length>1 ? ' · '+lesson.editions.length+' sürüm' : '');
+  if (lesson.upcoming) {
+    return `<li class="course-row course-missing"><div class="course-link">
+      <span class="course-file-icon">${icon("file")}</span>
+      <span class="course-text"><strong>${escapeHtml(lesson.title)}</strong>
+      <span class="course-meta">${escapeHtml([lesson.sequence,"Sunum henüz eklenmedi"].filter(Boolean).join(" · "))}</span></span>
+      </div></li>`;
+  }
+  const counts = lesson.editions[0].slideCount + " slayt" + (lesson.editions.length>1 ? ' · '+lesson.editions.length+' sürüm' : '');
   return `<li class="course-row"><a href="${lessonUrl(lesson)}" class="course-link">
     <span class="course-file-icon">${icon("file")}</span>
     <span class="course-text"><strong>${escapeHtml(lesson.title)}</strong>
@@ -136,20 +141,16 @@ function catalogueRow(lesson) {
 }
 function updateList() {
   const onlySaved = page === "kaydedilenler";
-  const term = folded(query.trim());
-  const filter = onlySaved ? "" : document.querySelector('input[name="course-group"]:checked')?.value;
-  const found = catalog.filter(lesson => (!onlySaved || saved.has(lesson.id)) && (!filter || lesson.group === filter) &&
-    folded([lesson.title,lesson.group,lesson.sequence,lesson.description].join(" ")).includes(term));
-  const showMissing = !onlySaved && (!filter || filter === weeklyGroup) && folded(weeklyGroup + " 1. hafta Tebliğ").includes(term);
-  const result = document.querySelector("#course-list");
+  const term = foldText(query.trim());
+  const filter = onlySaved ? "" : main.querySelector('input[name="course-group"]:checked')?.value;
+  const found = entries.filter(lesson => (onlySaved ? saved.has(lesson.id) : !filter || lesson.group === filter) &&
+    foldText([lesson.title,lesson.group,lesson.sequence,lesson.description].join(" ")).includes(term));
   let html = "";
   for (const group of groups) {
     const items = found.filter(lesson=>lesson.group===group);
-    const missing = group===weeklyGroup && showMissing;
-    if (!items.length && !missing) continue;
+    if (!items.length) continue;
     html += `<section class="course-group"><h3>${escapeHtml(group)}</h3>
-      <ul>${missing ? '<li class="course-row course-missing"><div class="course-link"><span class="course-file-icon">'+icon("file")+'</span><span class="course-text"><strong>Tebliğ</strong><span class="course-meta">1. hafta · Sunum henüz eklenmedi</span></span></div></li>' : ''}
-      ${items.map(catalogueRow).join("")}</ul></section>`;
+      <ul>${items.map(catalogueRow).join("")}</ul></section>`;
   }
   if (!html) {
     const emptySaved = onlySaved && !saved.size;
@@ -157,8 +158,8 @@ function updateList() {
       <p>${emptySaved ? 'Bir sunumu buraya eklemek için kaydetme simgesine dokun.' : 'Başka bir ders adıyla aramayı deneyebilirsin.'}</p>
       ${emptySaved ? '<a href="#benim-sunumlarim">Benim Sunumlarım</a>' : ''}</div>`;
   }
-  result.innerHTML=html;
-  document.querySelector("#result-count").textContent = found.length + " sunum";
+  main.querySelector("#course-list").innerHTML = html;
+  main.querySelector("#result-count").textContent = found.filter(lesson => !lesson.upcoming).length + " sunum";
 }
 function collection() {
   const onlySaved = page === "kaydedilenler";
@@ -181,25 +182,34 @@ function collection() {
         <label class="course-search">${icon("search")}<input type="search" id="search" aria-label="Ders ara" placeholder="Ders ara…" autocomplete="off"></label></div>
         <div class="course-list" id="course-list"></div>
       </div></div></section>`;
-  if (!onlySaved) document.querySelector("#course-filters").addEventListener("change",updateList);
-  document.querySelector("#search").addEventListener("input", event => {
+  if (!onlySaved) main.querySelector("#course-filters").addEventListener("change",updateList);
+  main.querySelector("#search").addEventListener("input", event => {
     query = event.target.value;
     updateList();
   });
   updateList();
 }
+function notFound(lesson) {
+  const title = lesson ? lesson.title + " sunumu henüz eklenmedi" : "Ders bulunamadı";
+  document.title = title + " · Ders Halkası";
+  main.innerHTML = `<section class="course-catalog">
+    <nav class="course-trail" aria-label="Gezinme yolu"><a href="#kitaplik">Kitaplık</a><span aria-hidden="true">/</span><a href="#benim-sunumlarim">Benim Sunumlarım</a></nav>
+    <div class="empty not-found"><h1>${escapeHtml(title)}</h1>
+      <p>${lesson ? 'Sunum hazır olduğunda bu bağlantıdan açılacak.' : 'Bu bağlantıdaki ders kaldırılmış ya da adresi değişmiş olabilir.'}</p>
+      <a href="#benim-sunumlarim">Tüm sunumlara göz at</a></div>
+  </section>`;
+}
 function fileLink(path, caption, download = false) {
   if (!path) return "";
-  const url = typeof window.resolveLessonFile === "function" ? window.resolveLessonFile(path) : path;
   const filename = String(path).split("/").pop();
   const attrs = download ? 'download="'+escapeHtml(filename)+'"' : 'target="_blank" rel="noopener"';
-  return `<a class="source-link" href="${escapeHtml(url)}" ${attrs}>${icon(download ? "download" : "file")}${escapeHtml(caption)}</a>`;
+  return `<a class="source-link" href="${escapeHtml(path)}" ${attrs}>${icon(download ? "download" : "file")}${escapeHtml(caption)}</a>`;
 }
 function outline() {
-  return groups.map(group=>`
+  return groups.map(group => [group, catalog.filter(lesson=>lesson.group===group)]).filter(([, lessons]) => lessons.length).map(([group, lessons])=>`
     <details class="outline-group" data-group="${escapeHtml(group)}" ${group===selected.group ? 'open' : ''}>
       <summary>${escapeHtml(group)}</summary><nav aria-label="${escapeHtml(group)}">
-      ${catalog.filter(lesson=>lesson.group===group).map(lesson=>
+      ${lessons.map(lesson=>
         `<a href="${lessonUrl(lesson)}" ${lesson===selected ? 'aria-current="page"' : ''}>
           ${lesson.sequence ? '<small>'+escapeHtml(lesson.sequence)+'</small>' : ''}${escapeHtml(lesson.title)}</a>`
       ).join("")}
@@ -233,13 +243,13 @@ function reader() {
       </div>
     </div>
   </section>`;
-  document.querySelector("#outline-search").addEventListener("input", event => {
-    const term = folded(event.target.value.trim());
+  main.querySelector("#outline-search").addEventListener("input", event => {
+    const term = foldText(event.target.value.trim());
     let matches = 0;
     main.querySelectorAll(".outline-group").forEach(section => {
       let count = 0;
       section.querySelectorAll("a").forEach(link => {
-        const match = folded(section.dataset.group+" "+link.textContent).includes(term);
+        const match = foldText(section.dataset.group+" "+link.textContent).includes(term);
         link.hidden = !match;
         if (match) count++;
       });
@@ -247,17 +257,36 @@ function reader() {
       section.open = term ? count > 0 : section.dataset.group === selected.group;
       matches += count;
     });
-    document.querySelector("#outline-empty").hidden = matches > 0;
+    main.querySelector("#outline-empty").hidden = matches > 0;
   });
-  slidePanel();
+  showDeck();
+}
+// Slaytlar ders açılınca decks/ klasöründen yüklenir; o sırada yer tutucu gösterilir.
+function showDeck() {
+  if (deck) {
+    slidePanel();
+    return;
+  }
+  const wanted = edition;
+  main.querySelector("#lesson-panel").innerHTML = '<div class="slide-status" role="status">Slaytlar yükleniyor…</div>';
+  window.loadDeck(wanted.deck).then(loaded => {
+    if (edition !== wanted) return;
+    deck = loaded;
+    slidePanel();
+  }, () => {
+    if (edition !== wanted) return;
+    main.querySelector("#lesson-panel").innerHTML = `<div class="slide-status" role="alert">
+      <p>Slaytlar yüklenemedi. İnternet bağlantını kontrol edip tekrar dene.</p>
+      <button type="button" class="pg" data-retry>Tekrar dene</button></div>`;
+  });
 }
 function slidePanel() {
-  const slide = edition.slides[slideIndex];
+  const slide = deck.slides[slideIndex];
   const text = Array.isArray(slide.text) ? slide.text.join("\n") : slide.text;
   const name = escapeHtml(slide.title);
-  const count = edition.slides.length;
-  const options = edition.slides.map((_,i)=>`<option value="${i}" ${i===slideIndex ? 'selected' : ''}>${i+1} / ${count}</option>`).join("");
-  const panel = document.querySelector("#lesson-panel");
+  const count = deck.slides.length;
+  const options = deck.slides.map((_,i)=>`<option value="${i}" ${i===slideIndex ? 'selected' : ''}>${i+1} / ${count}</option>`).join("");
+  const panel = main.querySelector("#lesson-panel");
   let content;
   if (mode === "notes") {
     content = `<article class="speaker-text">
@@ -265,7 +294,7 @@ function slidePanel() {
     </article>`;
   } else {
     content = `<div class="slide-art" role="img" aria-label="Slayt ${slideIndex+1} · ${name}">
-      ${window.originalSlideSvg(edition.stem,slideIndex)}</div>`;
+      ${window.renderSlide(deck,slideIndex)}</div>`;
   }
   panel.innerHTML = `${content}<div class="slide-controls">
     <button type="button" class="pg" data-pg="-1" ${slideIndex===0 ? 'disabled' : ''}>Önceki</button>
@@ -276,7 +305,7 @@ function slidePanel() {
     ${mode==="slides" && text ? '<details class="slide-transcript"><summary>Slayt metnini oku</summary><p dir="auto">'+escapeHtml(text)+'</p></details>' : ''}`;
 }
 function selectSlide(index, focusTarget) {
-  if (!edition || !Number.isInteger(index) || index<0 || index>=edition.slides.length || index===slideIndex) return;
+  if (!deck || !Number.isInteger(index) || index<0 || index>=deck.slides.length || index===slideIndex) return;
   slideIndex = index;
   const hash=lessonUrl(selected)+"/"+encodeURIComponent(edition.id)+"/"+(index+1);
   try { history.replaceState(null,"",hash); } catch { /* Slide navigation also works in restricted file previews. */ }
@@ -302,13 +331,15 @@ main.addEventListener("click", event => {
   } else if (button.hasAttribute("data-mode") && edition) {
     mode=button.dataset.mode;
     main.querySelectorAll("[data-mode]").forEach(item=>item.setAttribute("aria-pressed",String(item.dataset.mode===mode)));
-    slidePanel();
+    if (deck) slidePanel();
   } else if (button.hasAttribute("data-pg")) {
     selectSlide(slideIndex+Number(button.dataset.pg),'[data-pg="'+button.dataset.pg+'"]');
+  } else if (button.hasAttribute("data-retry") && edition) {
+    showDeck();
   }
 });
 document.addEventListener("keydown",event=>{
-  if (!edition || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
+  if (!deck || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
       event.target.closest("select,input,textarea,[contenteditable=true],summary")) return;
   if(event.key==="ArrowRight" || event.key==="ArrowLeft") {
     event.preventDefault();
@@ -325,16 +356,22 @@ function route() {
   const [section,id,version,number] = location.hash.slice(1).split("/");
   const wasRendered=Boolean(main.children.length);
   const oldLesson=selected;
-  selected=section==="ders" ? catalog.find(lesson=>lesson.id===id) : null;
+  const lesson=section==="ders" ? entries.find(item=>item.id===id) : null;
+  selected=lesson && !lesson.upcoming ? lesson : null;
   edition=null;
+  deck=null;
   if (selected) {
     if (page!=="ders") readerOrigin=page==="kaydedilenler" ? page : "benim-sunumlarim";
     edition=selected.editions.find(item=>item.id===version) || selected.editions[0];
+    deck=window.getDeck(edition.deck) || null;
     if (oldLesson!==selected) mode="slides";
     const requested=Number(number);
-    slideIndex=Number.isInteger(requested) && requested>=1 && requested<=edition.slides.length ? requested-1 : 0;
+    slideIndex=Number.isInteger(requested) && requested>=1 && requested<=edition.slideCount ? requested-1 : 0;
     page="ders";
     reader();
+  } else if (section==="ders") {
+    page="bulunamadi";
+    notFound(lesson);
   } else if (section==="irsad-ekseni") {
     page=section;
     window.renderWeekly(main,location.hash.slice(1).split("/"));

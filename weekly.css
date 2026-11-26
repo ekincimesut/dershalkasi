@@ -133,7 +133,6 @@
 
 .wk-tree summary:focus-visible, .wk-topic a:focus-visible { outline-offset: -2px; }
 .wk-no-match { margin: .9rem 0; color: var(--muted); }
-.wk-page [hidden] { display: none; }
 
 .wk-panel { min-width: 0; padding: clamp(1.25rem, 3.5vw, 2.75rem); }
 .wk-panel .wk-intro {

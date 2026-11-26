@@ -17,18 +17,13 @@
     }
   ];
 
-  const escape = text => String(text).replace(/[&<>"']/g, char => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-  }[char]));
   const route = (...nodes) => "#irsad-ekseni" + nodes.map(node => "/" + encodeURIComponent(node.id)).join("");
   const filesFor = (chapter, source) => chapter.materials[source.id] || [];
-
-  const normalize = value => value.toLocaleLowerCase("tr").normalize("NFD").replace(/\p{M}/gu, "").replace(/ı/g, "i");
 
   function outline(week, chapter, source) {
     function topic(href, text, level, current) {
       return '<li class="wk-topic wk-level-' + level + '"><a href="' + href + '"' +
-        (current ? ' aria-current="page"' : '') + '>' + escape(text) + '</a></li>';
+        (current ? ' aria-current="page"' : '') + '>' + escapeHtml(text) + '</a></li>';
     }
     const rows = weeks.map(item => {
       const chapters = item.chapters.map(child => {
@@ -36,12 +31,12 @@
           topic(route(item, child, resource), resource.name, 2, item === week && child === chapter && resource === source)
         ).join("");
         return '<li class="wk-node wk-child"><details' + (item === week && child === chapter ? ' open' : '') +
-          '><summary>' + escape(child.title) + '</summary><ul>' +
+          '><summary>' + escapeHtml(child.title) + '</summary><ul>' +
           topic(route(item, child), 'Bölüm kaynakları', 2, item === week && child === chapter && !source) +
           resources + '</ul></details></li>';
       }).join("");
       return '<li class="wk-node"><details' + (item === week ? ' open' : '') +
-        '><summary>' + escape(item.title) + '</summary><ul>' +
+        '><summary>' + escapeHtml(item.title) + '</summary><ul>' +
         topic(route(item), 'Bölümler', 1, item === week && !chapter) + chapters + '</ul></details></li>';
     }).join("");
     return '<nav class="wk-outline" aria-label="Haftalar ve bölümler"><h2>Haftalar</h2>' +
@@ -65,7 +60,7 @@
       for (const node of list.children) {
         const branch = node.querySelector(":scope > details");
         const label = branch ? branch.querySelector("summary") : node.firstElementChild;
-        const ownMatch = normalize(label.textContent).includes(term);
+        const ownMatch = foldText(label.textContent).includes(term);
         const matchedChild = branch && filterNodes(branch.querySelector("ul"), ownMatch ? "" : term);
         node.hidden = !ownMatch && !matchedChild;
         if (!node.hidden) found = true;
@@ -75,25 +70,26 @@
     }
 
     main.querySelector(".wk-search input").addEventListener("input", event => {
-      const term = normalize(event.target.value.trim());
+      const term = foldText(event.target.value.trim());
       noMatch.hidden = filterNodes(tree, term);
     });
   }
 
   function weekView(week) {
-    return '<h2>' + escape(week.title) + '</h2><h3>Bölümler</h3><ul class="wk-rows">' +
-      week.chapters.map(chapter =>
-        '<li><a href="' + route(week, chapter) + '"><span>' + escape(chapter.title) +
-        '</span><small>' + sources.length + ' kaynak</small></a></li>'
-      ).join("") + '</ul>';
+    return '<h2>' + escapeHtml(week.title) + '</h2><h3>Bölümler</h3><ul class="wk-rows">' +
+      week.chapters.map(chapter => {
+        const total = sources.reduce((sum, source) => sum + filesFor(chapter, source).length, 0);
+        return '<li><a href="' + route(week, chapter) + '"><span>' + escapeHtml(chapter.title) +
+          '</span><small>' + (total ? total + ' sunum' : 'Henüz eklenmedi') + '</small></a></li>';
+      }).join("") + '</ul>';
   }
 
   function chapterView(week, chapter) {
     return '<a class="wk-back" href="' + route(week) + '">Haftaya dön</a><h2>' +
-      escape(chapter.title) + '</h2><h3>Kaynaklar</h3><ul class="wk-rows wk-sources">' +
+      escapeHtml(chapter.title) + '</h2><h3>Kaynaklar</h3><ul class="wk-rows wk-sources">' +
       sources.map(source => {
         const files = filesFor(chapter, source);
-        return '<li><a href="' + route(week, chapter, source) + '"><span>' + escape(source.name) +
+        return '<li><a href="' + route(week, chapter, source) + '"><span>' + escapeHtml(source.name) +
           '</span><small>' + (files.length ? files.length + ' sunum' : 'Henüz eklenmedi') + '</small></a></li>';
       }).join("") + '</ul>';
   }
@@ -101,12 +97,12 @@
   function sourceView(week, chapter, source) {
     const files = filesFor(chapter, source);
     const items = files.map(file =>
-      '<li><a href="' + escape(file.href) + '">' + escape(file.title) + '</a></li>'
+      '<li><a href="' + escapeHtml(file.href) + '">' + escapeHtml(file.title) + '</a></li>'
     ).join("");
     return '<a class="wk-back" href="' + route(week, chapter) + '">Kaynaklara dön</a><h2>' +
-      escape(source.name) + '</h2><p class="wk-desc">' + escape(week.title + ' · ' + chapter.title) + '</p>' +
+      escapeHtml(source.name) + '</h2><p class="wk-desc">' + escapeHtml(week.title + ' · ' + chapter.title) + '</p>' +
       (files.length ? '<h3>Sunumlar</h3><ul class="wk-rows">' + items + '</ul>' :
-       '<p class="wk-empty">Bu bölümün ' + escape(source.name) + ' sunumunu henüz paylaşmadık.</p>');
+       '<p class="wk-empty">Bu bölümün ' + escapeHtml(source.name) + ' sunumunu henüz paylaşmadık.</p>');
   }
 
   window.renderWeekly = function renderWeekly(main, parts) {
